@@ -1,13 +1,13 @@
-# GraphLink
+# SeaPrune
 
-GraphLink is a graph-based, table-level schema linking pipeline for text-to-SQL. It builds database schema graphs, retrieves relevant tables for each natural-language question, optionally renders table dependency hints, and evaluates the resulting schema contexts on Spider, BIRD, and Spider2.0-Lite style benchmarks.
+SeaPrune is a graph-based, table-level schema linking pipeline for text-to-SQL. It builds database schema graphs, retrieves relevant tables for each natural-language question, optionally renders table dependency hints, and evaluates the resulting schema contexts on Spider, BIRD, and Spider2.0-Lite style benchmarks.
 
-This repository is a cleaned release package extracted from a research workspace. It keeps the reproducible GraphLink schema-linking pipeline, context rendering utilities, and evaluation adapters, while excluding private credentials, large datasets, generated experiment outputs, and historical debugging scripts.
+This repository is a cleaned release package extracted from a research workspace. It keeps the reproducible SeaPrune schema-linking pipeline, context rendering utilities, and evaluation adapters, while excluding private credentials, large datasets, generated experiment outputs, and historical debugging scripts.
 
 ## Highlights
 
 - **Graph-based schema linking**: table profiling, table descriptions, embedding retrieval, schema graph construction, personalized PageRank, subquery decomposition, and batch policy pruning.
-- **Dependency-aware context rendering**: GraphLink can render table relation hints such as joins and graph dependencies for downstream generators.
+- **Dependency-aware context rendering**: SeaPrune can render table relation hints such as joins and graph dependencies for downstream generators.
 - **Fixed-generator evaluation adapters**: utilities for CHESS/KaSLA-style single-shot evaluation and Spider2.0-Lite backend-aware prompt/evaluation compatibility.
 - **Policy-training module**: generate QA/SQL data, convert to VERL-compatible parquet, split train/val data, and train a table-selection policy with GRPO.
 - **GitHub-safe package**: no real BigQuery/Snowflake credentials, no internal endpoints, no experiment logs, and no full baseline repositories.
@@ -15,10 +15,10 @@ This repository is a cleaned release package extracted from a research workspace
 ## Repository Layout
 
 ```text
-GraphLink/
-  graphlink/
+SeaPrune/
+  SeaPrune/
     data/                    # path config validation and dataset preparation helpers
-    schema_linking/          # GraphLink core, CLI, metrics, linked-file helpers
+    schema_linking/          # SeaPrune core, CLI, metrics, linked-file helpers
     sql_generation/          # schema-context renderers and fixed-generator adapters
     evaluation/              # Spider/BIRD and Spider2Lite evaluation adapters
     policy_training/         # QA generation, parquet conversion, reward, GRPO template
@@ -33,7 +33,7 @@ GraphLink/
 
 ```bash
 git clone <your-github-repo-url>
-cd GraphLink
+cd SeaPrune
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -63,7 +63,7 @@ Model access is configured through environment variables, not committed files:
 export OPENAI_BASE_URL=http://your-openai-compatible-endpoint/v1
 export OPENAI_API_KEY=your_key
 export VLLM_MODEL_NAME=your_chat_model
-export GRAPHLINK_EMBEDDING_MODEL=Qwen3-Embedding-8B
+export SeaPrune_EMBEDDING_MODEL=Qwen3-Embedding-8B
 ```
 
 For Spider2.0-Lite online execution, keep BigQuery/Snowflake credentials outside git and point your local examples directory to them. Do not commit credential JSON files.
@@ -80,11 +80,11 @@ bash scripts/00_download_data.sh
 bash scripts/01_prepare_data.sh
 
 # 2. Build database-specific schema graphs.
-export GRAPHLINK_EXAMPLES_LITE=/path/to/examples_lite
-export GRAPHLINK_DATABASE_GRAPHS_DIR=/path/to/database_graphs
+export SeaPrune_EXAMPLES_LITE=/path/to/examples_lite
+export SeaPrune_DATABASE_GRAPHS_DIR=/path/to/database_graphs
 bash scripts/02_build_schema_graph.sh
 
-# 3. Run GraphLink schema linking.
+# 3. Run SeaPrune schema linking.
 bash scripts/03_run_schema_linking.sh
 
 # 4. Build selected-schema SQL-generation prompts with dependency hints.
@@ -98,13 +98,13 @@ For a detailed phase-by-phase explanation, see [docs/pipeline.md](docs/pipeline.
 
 ## Schema Linking
 
-Run the public GraphLink CLI:
+Run the public SeaPrune CLI:
 
 ```bash
-python3 -m graphlink.schema_linking.run \
+python3 -m SeaPrune.schema_linking.run \
   --task lite \
   --db_path /path/to/examples_lite \
-  --linked_json_pth outputs/schema_linking/graphlink_linked.json \
+  --linked_json_pth outputs/schema_linking/SeaPrune_linked.json \
   --database_graphs_dir /path/to/database_graphs \
   --use_semantic_graph_search \
   --use_subquery_decomposition \
@@ -117,9 +117,9 @@ python3 -m graphlink.schema_linking.run \
 For BIRD-style local examples, use `--task local` and point `--db_path` to the prepared BIRD examples directory:
 
 ```bash
-python3 -m graphlink.schema_linking.run \
+python3 -m SeaPrune.schema_linking.run \
   --db_path /path/to/examples_bird \
-  --linked_json_pth outputs/schema_linking/graphlink_bird.json \
+  --linked_json_pth outputs/schema_linking/SeaPrune_bird.json \
   --use_semantic_graph_search \
   --use_subquery_decomposition \
   --database_graphs_dir /path/to/database_graphs_bird \
@@ -136,14 +136,14 @@ python3 -m graphlink.schema_linking.run \
 Compute table-level metrics:
 
 ```bash
-python3 -m graphlink.schema_linking.metrics \
-  --linked-json outputs/schema_linking/graphlink_linked.json \
+python3 -m SeaPrune.schema_linking.metrics \
+  --linked-json outputs/schema_linking/SeaPrune_linked.json \
   --db-path /path/to/examples_lite
 ```
 
 ## Linked JSON Format
 
-GraphLink outputs table decisions keyed by instance id:
+SeaPrune outputs table decisions keyed by instance id:
 
 ```json
 {
@@ -168,10 +168,10 @@ More details: [docs/schema_linking_format.md](docs/schema_linking_format.md).
 Build backend-aware selected-schema prompts:
 
 ```bash
-python3 -m graphlink.sql_generation.build_prompts \
+python3 -m SeaPrune.sql_generation.build_prompts \
   --source-examples /path/to/examples_lite \
-  --output-examples outputs/examples_lite_graphlink \
-  --linking-file outputs/schema_linking/graphlink_linked.json \
+  --output-examples outputs/examples_lite_SeaPrune \
+  --linking-file outputs/schema_linking/SeaPrune_linked.json \
   --database-graphs-dir /path/to/database_graphs \
   --dependency-hints \
   --prompt-char-budget 131072
@@ -180,19 +180,19 @@ python3 -m graphlink.sql_generation.build_prompts \
 Run CHESS/KaSLA-style single-shot SQL generation:
 
 ```bash
-python3 -m graphlink.sql_generation.run \
+python3 -m SeaPrune.sql_generation.run \
   --datasets spider bird \
   --methods CHESS KaSLA \
   --output-dir outputs/sql_generation/native \
   --linking-dir /path/to/unified_schema_linking \
-  --graphlink-dependency-hints \
+  --SeaPrune-dependency-hints \
   --backend-dialect-prompts
 ```
 
 Dependency hints are rendered in prompts as:
 
 ```text
-GraphLink table dependency hints:
+SeaPrune table dependency hints:
 - table_a.col_x = table_b.col_y (type=..., reason=...)
 - table_a -> table_b (reason=...)
 ```
@@ -204,46 +204,46 @@ More details: [docs/sql_generation.md](docs/sql_generation.md).
 Spider/BIRD execution accuracy:
 
 ```bash
-python3 -m graphlink.evaluation.evaluate_sql_outputs \
+python3 -m SeaPrune.evaluation.evaluate_sql_outputs \
   --dataset spider \
   --source native \
   --run-root outputs/sql_generation/native \
   --method CHESS \
-  --schema-linking graphlink \
-  --task-id spider_chess_graphlink
+  --schema-linking SeaPrune \
+  --task-id spider_chess_SeaPrune
 ```
 
 Spider2.0-Lite compile validity:
 
 ```bash
-python3 -m graphlink.evaluation.evaluate_spider2lite_compile \
+python3 -m SeaPrune.evaluation.evaluate_spider2lite_compile \
   --run-root outputs/sql_generation/native \
   --method CHESS \
-  --schema-linking graphlink \
-  --task-id spider2lite_chess_graphlink_compile
+  --schema-linking SeaPrune \
+  --task-id spider2lite_chess_SeaPrune_compile
 ```
 
 Spider2.0-Lite result accuracy:
 
 ```bash
-python3 -m graphlink.evaluation.evaluate_spider2lite_accuracy \
+python3 -m SeaPrune.evaluation.evaluate_spider2lite_accuracy \
   --run-root outputs/sql_generation/native \
   --method CHESS \
-  --schema-linking graphlink \
+  --schema-linking SeaPrune \
   --compile-detail outputs/eval_details/<compile_detail>.json \
-  --task-id spider2lite_chess_graphlink_accuracy \
+  --task-id spider2lite_chess_SeaPrune_accuracy \
   --credential-mode per-example \
   --resume
 ```
 
 ## Policy Training
 
-GraphLink includes a policy-training module for table-level schema filtering. A small sample parquet is included at `examples/policy_training/train.parquet`.
+SeaPrune includes a policy-training module for table-level schema filtering. A small sample parquet is included at `examples/policy_training/train.parquet`.
 
 Generate QA data and train with VERL/GRPO:
 
 ```bash
-export GRAPHLINK_EXAMPLES_LITE=/path/to/examples_lite
+export SeaPrune_EXAMPLES_LITE=/path/to/examples_lite
 bash scripts/policy_training/00_generate_qa.sh
 bash scripts/policy_training/01_convert_to_parquet.sh
 bash scripts/policy_training/02_split_parquet.sh
@@ -258,18 +258,18 @@ The default reward is table-level precision/recall/F1 plus a JSON/SQL-format bon
 
 ## Third-Party Compatibility
 
-Some small compatibility shims are included so GraphLink schema contexts can be evaluated with common Spider2.0-Lite execution utilities. They are isolated from the core schema-linking method. See [docs/compatibility.md](docs/compatibility.md) and [NOTICE](NOTICE).
+Some small compatibility shims are included so SeaPrune schema contexts can be evaluated with common Spider2.0-Lite execution utilities. They are isolated from the core schema-linking method. See [docs/compatibility.md](docs/compatibility.md) and [NOTICE](NOTICE).
 
 ## Citation
 
-If you use GraphLink, cite the artifact below and replace it with the final paper citation once the paper is published.
+If you use SeaPrune, cite the artifact below and replace it with the final paper citation once the paper is published.
 
 ```bibtex
-@misc{xiao2026graphlink,
-  title = {GraphLink: Graph-Based Schema Linking for Text-to-SQL},
+@misc{xiao2026SeaPrune,
+  title = {SeaPrune: Graph-Based Schema Linking for Text-to-SQL},
   author = {Xiao, Qingfa},
   year = {2026},
-  howpublished = {\url{https://github.com/MrXiaoaa/GraphLink}},
+  howpublished = {\url{https://github.com/MrXiaoaa/SeaPrune}},
   note = {Code artifact}
 }
 ```
